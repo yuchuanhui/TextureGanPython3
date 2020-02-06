@@ -4,8 +4,6 @@ import numpy as np
 from utils import transforms as custom_transforms
 from models import save_network, GramMatrix
 from utils.visualize import vis_image, vis_patch
-import time
-#import cv2
 import math
 import random
 
@@ -681,23 +679,24 @@ def train(model, train_loader, val_loader, input_stack, target_img,
 
                 err_texturegan += args.discriminator_local_weight * \
                     criterion_texturegan(outputD_local, labelv_local)
-            loss_graph["gdl"].append(err_texturegan.data[0])
+            loss_graph["gdl"].append(err_texturegan.item())
 
         ####################################
-        err_G = err_pixel_l + err_pixel_ab + err_gan + err_feat + err_style + err_texturegan
+        err_G = err_pixel_l + err_pixel_ab + err_gan + err_feat + err_style \
+            + err_texturegan
 
         err_G.backward(retain_graph=True)
 
         optimizerG.step()
 
-        loss_graph["g"].append(err_G.data[0])
-        loss_graph["gpl"].append(err_pixel_l.data[0])
-        loss_graph["gpab"].append(err_pixel_ab.data[0])
-        loss_graph["gd"].append(err_gan.data[0])
-        loss_graph["gf"].append(err_feat.data[0])
-        loss_graph["gs"].append(err_style.data[0])
+        loss_graph["g"].append(err_G.item())
+        loss_graph["gpl"].append(err_pixel_l.item())
+        loss_graph["gpab"].append(err_pixel_ab.item())
+        loss_graph["gd"].append(err_gan.item())
+        loss_graph["gf"].append(err_feat.item())
+        loss_graph["gs"].append(err_style.item())
 
-        print(('G:', err_G.data[0]))
+        print(('G:', err_G.item()))
 
         ############################
         # (2) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -751,17 +750,17 @@ def train(model, train_loader, val_loader, input_stack, target_img,
 
         D_acc = (real_acc + fake_acc) / 2
 
-        if D_acc.data[0] < args.threshold_D_max:
+        if D_acc.item() < args.threshold_D_max:
             # D_G_z1 = output.data.mean()
             errD = errD_real + errD_fake
-            loss_graph["d"].append(errD.data[0])
+            loss_graph["d"].append(errD.item())
             optimizerD.step()
         else:
             loss_graph["d"].append(0)
 
         print(('D:', 'real_acc', "%.2f" %
-               real_acc.data[0], 'fake_acc', "%.2f" %
-               fake_acc.data[0], 'D_acc', D_acc.data[0]))
+               real_acc.item(), 'fake_acc', "%.2f" %
+               fake_acc.item(), 'D_acc', D_acc.item()))
 
         ############################
         # (2) Update D local network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -845,17 +844,17 @@ def train(model, train_loader, val_loader, input_stack, target_img,
 
             D_acc = (realreal_acc + fakefake_acc) / 2
 
-            if D_acc.data[0] < args.threshold_D_max:
+            if D_acc.item() < args.threshold_D_max:
                 # D_G_z1 = output.data.mean()
                 errD_local = errD_real_local + errD_fake_local
-                loss_graph["dl"].append(errD_local.data[0])
+                loss_graph["dl"].append(errD_local.item())
                 optimizerD_local.step()
             else:
                 loss_graph["dl"].append(0)
 
             print(('D local:', 'real real_acc', "%.2f" %
-                   realreal_acc.data[0], 'fake fake_acc', "%.2f" %
-                   fakefake_acc.data[0], 'D_acc', D_acc.data[0]))
+                   realreal_acc.item(), 'fake fake_acc', "%.2f" %
+                   fakefake_acc.item(), 'D_acc', D_acc.item()))
             # if i % args.save_every == 0:
             #   save_network(netD_local, 'D_local', epoch, i, args)
 
