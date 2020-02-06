@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-import sys, os
+import sys
+import os
 import visdom
 import torchvision.models as models
 from torch.utils.data.sampler import SequentialSampler
@@ -16,12 +17,15 @@ from models import scribbler, discriminator, texturegan, define_G, weights_init,
 from train import train
 import argparser
 
+
 def get_transforms(args):
     transforms_list = [
-        custom_transforms.RandomSizedCrop(args.image_size, args.resize_min, args.resize_max),
+        custom_transforms.RandomSizedCrop(
+            args.image_size,
+            args.resize_min,
+            args.resize_max),
         custom_transforms.RandomHorizontalFlip(),
-        custom_transforms.toTensor()
-    ]
+        custom_transforms.toTensor()]
     if args.color_space == 'lab':
         transforms_list.insert(2, custom_transforms.toLAB())
     elif args.color_space == 'rgb':
@@ -64,6 +68,9 @@ def get_models(args):
     else:
         load_network(netD, 'D', args.load_epoch, args.load_D, args)
         load_network(netD_local, 'D_local', args.load_epoch, args.load_D, args)
+    netG = nn.DataParallel(netG)
+    netD = nn.DataParallel(netD)
+    netD_local = nn.DataParallel(netD_local)
     return netG, netD, netD_local
 
 
@@ -87,7 +94,11 @@ def get_criterions(args):
 
 
 def main(args):
-    layers_map = {'relu4_2': '22', 'relu2_2': '8', 'relu3_2': '13','relu1_2': '4'}
+    layers_map = {
+        'relu4_2': '22',
+        'relu2_2': '8',
+        'relu3_2': '13',
+        'relu1_2': '4'}
 
     vis = visdom.Visdom(port=args.display_port)
 
@@ -104,7 +115,8 @@ def main(args):
     }
 
     # for rgb the change is to feed 3 channels to D instead of just 1. and feed 3 channels to vgg.
-    # can leave pixel separate between r and gb for now. assume user use the same weights
+    # can leave pixel separate between r and gb for now. assume user use the
+    # same weights
     transforms = get_transforms(args)
 
     if args.color_space == 'rgb':
@@ -114,69 +126,108 @@ def main(args):
     rgbify = custom_transforms.toRGB()
 
     train_dataset = ImageFolder('train', args.data_path, transforms)
-    train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True)
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True)
 
     val_dataset = ImageFolder('val', args.data_path, transforms)
     indices = torch.randperm(len(val_dataset))
     val_display_size = args.batch_size
     val_display_sampler = SequentialSampler(indices[:val_display_size])
-    val_loader = DataLoader(dataset=val_dataset, batch_size=val_display_size, sampler=val_display_sampler)
+    val_loader = DataLoader(
+        dataset=val_dataset,
+        batch_size=val_display_size,
+        sampler=val_display_sampler)
     # renormalize = transforms.Normalize(mean=[+0.5+0.485, +0.5+0.456, +0.5+0.406], std=[0.229, 0.224, 0.225])
 
-    feat_model = models.vgg19(pretrained=True)
+    feat_model = nn.DataParallel(models.vgg19(pretrained=True))
     netG, netD, netD_local = get_models(args)
 
-    criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat,criterion_texturegan = get_criterions(args)
-
+    criterion_gan, criterion_pixel_l, criterion_pixel_ab, criterion_style, criterion_feat, criterion_texturegan = get_criterions(
+        args)
 
     real_label = 1
     fake_label = 0
 
-    optimizerD = optim.Adam(netD.parameters(), lr=args.learning_rate_D, betas=(0.5, 0.999))
-    optimizerG = optim.Adam(netG.parameters(), lr=args.learning_rate, betas=(0.5, 0.999))
-    optimizerD_local = optim.Adam(netD_local.parameters(), lr=args.learning_rate_D_local, betas=(0.5, 0.999))
+    optimizerD = optim.Adam(
+        netD.parameters(),
+        lr=args.learning_rate_D,
+        betas=(
+            0.5,
+            0.999))
+    optimizerG = optim.Adam(
+        netG.parameters(),
+        lr=args.learning_rate,
+        betas=(
+            0.5,
+            0.999))
+    optimizerD_local = optim.Adam(
+        netD_local.parameters(),
+        lr=args.learning_rate_D_local,
+        betas=(
+            0.5,
+            0.999))
 
-    with torch.cuda.device(args.gpu):
-        netG.cuda()
-        netD.cuda()
-        netD_local.cuda()
-        feat_model.cuda()
-        criterion_gan.cuda()
-        criterion_pixel_l.cuda()
-        criterion_pixel_ab.cuda()
-        criterion_feat.cuda()
-        criterion_texturegan.cuda()
+    # with torch.cuda.device(args.gpu):
+    gpu_0 = torch.device('cuda:0')
+    gpu_1 = torch.device('cuda:1')
+    netG.cuda()
+    netD.cuda()
+    netD_local.cuda()
+    feat_model.cuda()
+    criterion_gan.cuda()
+    criterion_pixel_l.cuda()
+    criterion_pixel_ab.cuda()
+    criterion_feat.cuda()
+    criterion_texturegan.cuda()
 
-        input_stack = torch.FloatTensor().cuda()
-        target_img = torch.FloatTensor().cuda()
-        target_texture = torch.FloatTensor().cuda()
-        segment = torch.FloatTensor().cuda()
-        label = torch.FloatTensor(args.batch_size).cuda()
-        label_local = torch.FloatTensor(args.batch_size).cuda()
-        extract_content = FeatureExtractor(feat_model.features, [layers_map[args.content_layers]])
-        extract_style = FeatureExtractor(feat_model.features,
-                                         [layers_map[x.strip()] for x in args.style_layers.split(',')])
+    input_stack = torch.FloatTensor().cuda()
+    target_img = torch.FloatTensor().cuda()
+    target_texture = torch.FloatTensor().cuda()
+    segment = torch.FloatTensor().cuda()
+    label = torch.FloatTensor(args.batch_size).cuda()
+    label_local = torch.FloatTensor(args.batch_size).cuda()
+    extract_content = FeatureExtractor(feat_model.module.features,
+                                       [layers_map[args.content_layers]])
+    extract_style = FeatureExtractor(
+        feat_model.module.features,
+        [layers_map[x.strip()] for x in args.style_layers.split(',')])
 
-        model = {
-            "netG": netG,
-            "netD": netD,
-            "netD_local": netD_local,
-            "criterion_gan": criterion_gan,
-            "criterion_pixel_l": criterion_pixel_l,
-            "criterion_pixel_ab": criterion_pixel_ab,
-            "criterion_feat": criterion_feat,
-            "criterion_style": criterion_style,
-            "criterion_texturegan": criterion_texturegan,
-            "real_label": real_label,
-            "fake_label": fake_label,
-            "optimizerD": optimizerD,
-            "optimizerD_local": optimizerD_local,
-            "optimizerG": optimizerG
-        }
+    model = {
+        "netG": netG,
+        "netD": netD,
+        "netD_local": netD_local,
+        "criterion_gan": criterion_gan,
+        "criterion_pixel_l": criterion_pixel_l,
+        "criterion_pixel_ab": criterion_pixel_ab,
+        "criterion_feat": criterion_feat,
+        "criterion_style": criterion_style,
+        "criterion_texturegan": criterion_texturegan,
+        "real_label": real_label,
+        "fake_label": fake_label,
+        "optimizerD": optimizerD,
+        "optimizerD_local": optimizerD_local,
+        "optimizerG": optimizerG
+    }
 
-        for epoch in range(args.load_epoch, args.num_epoch):
-            train(model, train_loader, val_loader, input_stack, target_img, target_texture,
-                  segment, label, label_local,extract_content, extract_style, loss_graph, vis, epoch, args)
+    for epoch in range(args.load_epoch, args.num_epoch):
+        train(
+            model,
+            train_loader,
+            val_loader,
+            input_stack,
+            target_img,
+            target_texture,
+            segment,
+            label,
+            label_local,
+            extract_content,
+            extract_style,
+            loss_graph,
+            vis,
+            epoch,
+            args)
 
 
 if __name__ == '__main__':

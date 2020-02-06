@@ -11,30 +11,35 @@ except ImportError:
     accimage = None
 import numpy as np
 import numbers
-import types
 import collections
+
 
 class toLAB(object):
     """
-    Transform to convert loaded into LAB space. 
+    Transform to convert loaded into LAB space.
     """
-    
+
     def __init__(self):
         self.space = 'LAB'
-        
+
     def __call__(self, images):
-        lab_images = [color.rgb2lab(np.array(image)/255.0) for image in images]
+        lab_images = []
+        for image in images:
+            image_array = np.array(image)
+            image_array = image_array / 255.0 * (image_array > 0)
+            lab_images.append(color.rgb2lab(image_array))
+        # lab_images = [color.rgb2lab(np.array(image)/255.0) for image in images]
         return lab_images
 
 
 class toRGB_(object):
     """
-    Transform to convert loaded into LAB space. 
+    Transform to convert loaded into LAB space.
     """
-    
+
     def __init__(self):
         self.space = 'LAB'
-        
+
     def __call__(self, images):
         images = np.transpose(images.numpy(), (1, 2, 0))
         rgb_images = [(np.array(image)/255.0) for image in images]
@@ -43,18 +48,21 @@ class toRGB_(object):
 
 class toRGB(object):
     """
-    Transform to convert loaded into RGB color space. 
+    Transform to convert loaded into RGB color space.
     """
-    
-    def __init__(self, space ='LAB'):
+
+    def __init__(self, space='LAB'):
         self.space = space
-        
+
     def __call__(self, images):
-        if self.space =='LAB':
+        if self.space == 'LAB':
             # npimg = np.transpose(np.array(images), (1, 2, 0))
             # print(image)
-            rgb_img = [np.transpose(color.lab2rgb(np.transpose(image, (1,2,0))), (2,0,1)) for image in images]
-        elif self.space =='RGB':
+            rgb_img = [
+                np.transpose(
+                    color.lab2rgb(np.transpose(image, (1, 2, 0))),
+                    (2, 0, 1)) for image in images]
+        elif self.space == 'RGB':
             # print np.shape(images)
             # images = np.transpose(images.numpy(), (1, 2, 0))
             rgb_img = [(np.array(image)/255.0) for image in images]
@@ -64,10 +72,10 @@ class toRGB(object):
 
 class toTensor(object):
     """Transforms a Numpy image to torch tensor"""
-    
+
     def __init__(self):
         self.space = 'RGB'
-        
+
     def __call__(self, pics):
         imgs = [torch.from_numpy(pic.transpose((2, 0, 1))) for pic in pics]
         return imgs
@@ -76,114 +84,115 @@ class toTensor(object):
 def normalize_lab(lab_img):
     """
     Normalizes the LAB image to lie in range 0-1
-    
+
     Args:
     lab_img : torch.Tensor img in lab space
-    
+
     Returns:
-    lab_img : torch.Tensor Normalized lab_img 
+    lab_img : torch.Tensor Normalized lab_img
     """
     mean = torch.zeros(lab_img.size())
     stds = torch.zeros(lab_img.size())
-    
-    mean[:,0,:,:] = 50
-    mean[:,1,:,:] = 0
-    mean[:,2,:,:] = 0
-    
-    stds[:,0,:,:] = 50
-    stds[:,1,:,:] = 128
-    stds[:,2,:,:] = 128
-    
+
+    mean[:, 0, :, :] = 50
+    mean[:, 1, :, :] = 0
+    mean[:, 2, :, :] = 0
+
+    stds[:, 0, :, :] = 50
+    stds[:, 1, :, :] = 128
+    stds[:, 2, :, :] = 128
+
     return (lab_img.double() - mean.double())/stds.double()
+
 
 def normalize_seg(seg):
     """
     Normalizes the LAB image to lie in range 0-1
-    
+
     Args:
     lab_img : torch.Tensor img in lab space
-    
+
     Returns:
-    lab_img : torch.Tensor Normalized lab_img 
+    lab_img : torch.Tensor Normalized lab_img
     """
-    result = seg[:,0,:,:]
-    if torch.max(result) >1:
-        result = result/100.0
-    result = torch.round(result)
-    
-    
-    return result
+    result = seg[:, 0, :, :]
+    # if torch.max(result) >1:
+    #     result = result/100.0
+    # result = torch.round(result)
+    # return result
+    return result > 1
+
 
 def normalize_rgb(rgb_img):
     """
     Normalizes the LAB image to lie in range 0-1
-    
+
     Args:
     lab_img : torch.Tensor img in lab space
-    
+
     Returns:
-    lab_img : torch.Tensor Normalized lab_img 
+    lab_img : torch.Tensor Normalized lab_img
     """
     mean = torch.zeros(rgb_img.size())
     stds = torch.zeros(rgb_img.size())
-    
-    mean[:,0,:,:] = 0.485
-    mean[:,1,:,:] = 0.456
-    mean[:,2,:,:] = 0.406
-    
-    stds[:,0,:,:] = 0.229
-    stds[:,1,:,:] = 0.224
-    stds[:,2,:,:] = 0.225
-    
+
+    mean[:, 0, :, :] = 0.485
+    mean[:, 1, :, :] = 0.456
+    mean[:, 2, :, :] = 0.406
+
+    stds[:, 0, :, :] = 0.229
+    stds[:, 1, :, :] = 0.224
+    stds[:, 2, :, :] = 0.225
+
     return (rgb_img.double() - mean.double())/stds.double()
-   
-    
+
+
 def denormalize_lab(lab_img):
     """
     Normalizes the LAB image to lie in range 0-1
-    
+
     Args:
     lab_img : torch.Tensor img in lab space
-    
+
     Returns:
-    lab_img : torch.Tensor Normalized lab_img 
+    lab_img : torch.Tensor Normalized lab_img
     """
     mean = torch.zeros(lab_img.size())
     stds = torch.zeros(lab_img.size())
-    
-    mean[:,0,:,:] = 50
-    mean[:,1,:,:] = 0
-    mean[:,2,:,:] = 0
-    
-    stds[:,0,:,:] = 50
-    stds[:,1,:,:] = 128
-    stds[:,2,:,:] = 128
 
-    return lab_img.double() *stds.double() + mean.double()
+    mean[:, 0, :, :] = 50
+    mean[:, 1, :, :] = 0
+    mean[:, 2, :, :] = 0
+
+    stds[:, 0, :, :] = 50
+    stds[:, 1, :, :] = 128
+    stds[:, 2, :, :] = 128
+
+    return lab_img.double() * stds.double() + mean.double()
 
 
 def denormalize_rgb(rgb_img):
     """
     Normalizes the LAB image to lie in range 0-1
-    
+
     Args:
     lab_img : torch.Tensor img in lab space
-    
+
     Returns:
-    lab_img : torch.Tensor Normalized lab_img 
+    lab_img : torch.Tensor Normalized lab_img
     """
     mean = torch.zeros(rgb_img.size())
     stds = torch.zeros(rgb_img.size())
-    
-    mean[:,0,:,:] = 0.485
-    mean[:,1,:,:] = 0.456
-    mean[:,2,:,:] = 0.406
-    
-    stds[:,0,:,:] = 0.229
-    stds[:,1,:,:] = 0.224
-    stds[:,2,:,:] = 0.225
 
-    return rgb_img.double() *stds.double() + mean.double()
+    mean[:, 0, :, :] = 0.485
+    mean[:, 1, :, :] = 0.456
+    mean[:, 2, :, :] = 0.406
+
+    stds[:, 0, :, :] = 0.229
+    stds[:, 1, :, :] = 0.224
+    stds[:, 2, :, :] = 0.225
+
+    return rgb_img.double() * stds.double() + mean.double()
 
 
 ###########################################################################
@@ -209,6 +218,7 @@ class Compose(object):
             imgs = t(imgs)
         return imgs
 
+
 class Scale(object):
     """Rescale multiple input PIL.Image to the given size.
     Args:
@@ -222,7 +232,12 @@ class Scale(object):
     """
 
     def __init__(self, size, interpolation=Image.BILINEAR):
-        assert isinstance(size, int) or (isinstance(size, collections.Iterable) and len(size) == 2)
+        assert isinstance(
+            size,
+            int) or (
+            isinstance(
+                size,
+                collections.Iterable) and len(size) == 2)
         self.size = size
         self.interpolation = interpolation
         self.transform = torchvision.transforms.Scale(size)
@@ -233,7 +248,7 @@ class Scale(object):
             imgs (list of PIL.Image): Images to be scaled.
         Returns:
             list of PIL.Image: Rescaled images.
-        """       
+        """
         return [self.transform(img) for img in imgs]
 
 
@@ -277,14 +292,17 @@ class Pad(object):
     def __init__(self, padding, fill=0):
         assert isinstance(padding, (numbers.Number, tuple))
         assert isinstance(fill, (numbers.Number, str, tuple))
-        if isinstance(padding, collections.Sequence) and len(padding) not in [2, 4]:
-            raise ValueError("Padding must be an int or a 2, or 4 element tuple, not a " +
-                             "{} element tuple".format(len(padding)))
+        if isinstance(padding, collections.Sequence) and len(
+                padding) not in [2, 4]:
+            raise ValueError(
+                "Padding must be an int or a 2, or 4 element tuple, not a " +
+                "{} element tuple".format(
+                    len(padding)))
 
         self.padding = padding
         self.fill = fill
-        
-        self.transform = torchvision.transforms.Pad(padding,fill)
+
+        self.transform = torchvision.transforms.Pad(padding, fill)
 
     def __call__(self, imgs):
         """
@@ -293,7 +311,7 @@ class Pad(object):
         Returns:
             PIL.Image: Padded image.
         """
-        
+
         return [self.transform(img) for img in imgs]
 
 
@@ -324,7 +342,9 @@ class RandomCrop(object):
             PIL.Image: Cropped image.
         """
         if self.padding > 0:
-            imgs = [ImageOps.expand(img, border=self.padding, fill=0) for img in imgs]
+            imgs = [
+                ImageOps.expand(img, border=self.padding, fill=0)
+                for img in imgs]
 
         w, h = imgs[0].size
         th, tw = self.size
@@ -362,15 +382,19 @@ class RandomSizedCrop(object):
         interpolation: Default: PIL.Image.BILINEAR
     """
 
-    def __init__(self, size, min_resize=0.08,max_resize=1.0,interpolation=Image.BILINEAR):
+    def __init__(
+            self, size, min_resize=0.08, max_resize=1.0,
+            interpolation=Image.BILINEAR):
         self.size = size
         self.interpolation = interpolation
-        self.resize_size = (min_resize,max_resize)
+        self.resize_size = (min_resize, max_resize)
 
     def __call__(self, imgs):
         for attempt in range(10):
             area = imgs[0].size[0] * imgs[0].size[1]
-            target_area = random.uniform(self.resize_size[0], self.resize_size[1]) * area
+            target_area = random.uniform(
+                self.resize_size[0],
+                self.resize_size[1]) * area
             aspect_ratio = random.uniform(3. / 4, 4. / 3)
 
             w = int(round(math.sqrt(target_area * aspect_ratio)))
@@ -386,14 +410,10 @@ class RandomSizedCrop(object):
                 imgs = [img.crop((x1, y1, x1 + w, y1 + h)) for img in imgs]
                 assert([img.size == (w, h) for img in imgs])
 
-                return [img.resize((self.size, self.size), self.interpolation) for img in imgs]
+                return [img.resize((self.size, self.size),
+                                   self.interpolation) for img in imgs]
 
         # Fallback
         scale = Scale(self.size, interpolation=self.interpolation)
         crop = CenterCrop(self.size)
         return crop(scale(imgs))
-
-
-
-   
-    
