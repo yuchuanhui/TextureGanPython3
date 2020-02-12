@@ -211,7 +211,7 @@ def main(args):
         "optimizerG": optimizerG
     }
 
-    for epoch in range(args.load_epoch, args.num_epoch):
+    for epoch in range(args.load_epoch + 1, args.num_epoch):
         train(
             model,
             train_loader,

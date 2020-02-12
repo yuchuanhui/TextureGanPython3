@@ -12,6 +12,7 @@ except ImportError:
 import numpy as np
 import numbers
 import collections
+import cv2
 
 
 class toLAB(object):
@@ -24,11 +25,11 @@ class toLAB(object):
 
     def __call__(self, images):
         lab_images = []
-        for image in images:
-            image_array = np.array(image)
-            image_array = image_array / 255.0 * (image_array > 0)
-            lab_images.append(color.rgb2lab(image_array))
-        # lab_images = [color.rgb2lab(np.array(image)/255.0) for image in images]
+        # for image in images:
+        #     image_array = np.array(image)
+        #     image_array = image_array / 255.0 * (image_array > 0)
+        #     lab_images.append(color.rgb2lab(image_array))
+        lab_images = [color.rgb2lab(np.array(image)/255.0) for image in images]
         return lab_images
 
 
@@ -56,15 +57,11 @@ class toRGB(object):
 
     def __call__(self, images):
         if self.space == 'LAB':
-            # npimg = np.transpose(np.array(images), (1, 2, 0))
-            # print(image)
             rgb_img = [
                 np.transpose(
                     color.lab2rgb(np.transpose(image, (1, 2, 0))),
                     (2, 0, 1)) for image in images]
         elif self.space == 'RGB':
-            # print np.shape(images)
-            # images = np.transpose(images.numpy(), (1, 2, 0))
             rgb_img = [(np.array(image)/255.0) for image in images]
 
         return rgb_img

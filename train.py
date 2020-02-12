@@ -859,9 +859,9 @@ def train(model, train_loader, val_loader, input_stack, target_img,
             #   save_network(netD_local, 'D_local', epoch, i, args)
 
         if i % args.save_every == 0:
-            save_network(netG, 'G', epoch, i, args)
-            save_network(netD, 'D', epoch, i, args)
-            save_network(netD_local, 'D_local', epoch, i, args)
+            save_network(netG.module, 'G', epoch, i, args)
+            save_network(netD.module, 'D', epoch, i, args)
+            save_network(netD_local.module, 'D_local', epoch, i, args)
 
         if i % args.visualize_every == 0:
             visualize_training(
